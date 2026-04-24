@@ -25,18 +25,99 @@ export const designSystemSchema = z.object({
     .default("tailwind")
     .describe("CSS approach"),
   model: z
-    .enum(["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash-lite"])
+    .enum(["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash-lite", "gemini-3-flash-preview"])
     .default("gemini-2.5-pro") // Pro for better quality design systems
-    .describe("Gemini model (pro recommended for design systems)"),
+    .describe("Gemini model (pro recommended for design systems, 3-flash-preview=premium visual)"),
   includeCroPrinciples: z
     .boolean()
     .default(true)
     .describe("Include CRO guidelines in design system"),
+  output: z
+    .enum(["design-md", "legacy"])
+    .default("design-md")
+    .describe("Output format: 'design-md' for Google Labs DESIGN.md spec (default), 'legacy' for the original 10-section custom format"),
 });
 
 export type DesignSystemInput = z.infer<typeof designSystemSchema>;
 
-function buildDesignSystemPrompt(input: DesignSystemInput, existingCss?: string): string {
+function buildDesignMdPrompt(input: DesignSystemInput, existingCss?: string): string {
+  let prompt = `You are a senior UI/UX designer creating a DESIGN.md file following the Google Labs open-source specification (https://github.com/google-labs-code/design.md).
+
+## Project Context
+${input.projectDescription}
+
+## Style Direction
+${input.style || "Modern, clean, professional"}
+
+## Target Stack
+- Framework: ${input.framework}
+- CSS: ${input.cssFramework}
+`;
+
+  if (existingCss) {
+    prompt += `
+## Existing CSS/Theme to Build Upon
+\`\`\`css
+${existingCss}
+\`\`\`
+`;
+  }
+
+  if (input.includeCroPrinciples) {
+    prompt += `
+## CRO Principles
+These conversion-rate-optimization principles must be embedded directly in the "Do's and Don'ts" section of the output — do NOT create a separate CRO section:
+${CRO_PRINCIPLES}
+`;
+  }
+
+  prompt += `
+## Output Format: Google Labs DESIGN.md Specification
+
+Generate a complete DESIGN.md file with the following structure:
+
+### Part 1 — YAML Frontmatter (between --- fences)
+
+Required fields:
+- \`name\`: project/design system name
+- \`version: alpha\`
+- \`description\`: one-sentence project description (optional but recommended)
+- \`colors\`: map of token names to sRGB hex values ("#RRGGBB"). Include: primary, accent, background, surface, text, text-muted, border, success, warning, error
+- \`typography\`: map of token names to objects with fontFamily, fontSize, fontWeight, lineHeight, and optionally letterSpacing. Include at minimum: heading-1, heading-2, body, body-sm, label, caption
+- \`rounded\`: map using canonical scale names (none, sm, md, lg, xl, full) to pixel values ("Npx")
+- \`spacing\`: map using canonical scale names (xs, sm, md, lg, xl, 2xl, 3xl) to pixel values ("Npx")
+- \`components\`: map of component names to objects. Each component property MUST use token references in the form "{colors.token}", "{typography.token}", "{rounded.token}", "{spacing.token}" — NEVER use raw hex or pixel values. Required properties per component: backgroundColor, textColor, typography, rounded, padding
+
+### Part 2 — Markdown Body (8 canonical sections, in this exact order)
+
+## Overview
+## Colors
+## Typography
+## Layout
+## Elevation & Depth
+## Shapes
+## Components
+## Do's and Don'ts
+
+Rules:
+- Use ONLY these 8 section headings, in this exact order
+- Do NOT add any extra sections (no "## 9. CRO Patterns", no "## Code Examples", etc.)
+- In "## Components", add a ### subsection for each component defined in the frontmatter
+- In "## Do's and Don'ts", use ✅ **Do** and ❌ **Don't** lines${input.includeCroPrinciples ? "; embed the CRO principles from above as concrete Do/Don't rules — do NOT create a separate CRO section" : ""}
+- All component property values in the YAML frontmatter must be token references, never raw values
+
+### Critical constraints
+- Output MUST start with \`---\` on line 1 (start of YAML frontmatter)
+- Color values must be valid sRGB hex (#RRGGBB)
+- Typography objects must include fontFamily, fontSize, fontWeight, lineHeight
+- Use canonical scale names: xs, sm, md, lg, xl, 2xl, 3xl for spacing; none, sm, md, lg, xl, full for rounded
+- Return ONLY the markdown content — no preamble, no explanation, no surrounding code fences
+`;
+
+  return prompt;
+}
+
+function buildLegacyPrompt(input: DesignSystemInput, existingCss?: string): string {
   let prompt = `You are a senior UI/UX designer creating a comprehensive design system.
 
 ## Project Context
@@ -161,7 +242,9 @@ export async function executeDesignSystem(
     }
   }
 
-  const prompt = buildDesignSystemPrompt(input, existingCss);
+  const prompt = input.output === "design-md"
+    ? buildDesignMdPrompt(input, existingCss)
+    : buildLegacyPrompt(input, existingCss);
 
   const response = await client.generateContent(prompt, {
     model: input.model as GeminiModel,
@@ -169,31 +252,41 @@ export async function executeDesignSystem(
     maxOutputTokens: 16384, // Large output for comprehensive design system
   });
 
-  // Clean up response - remove markdown code blocks if present
+  // Clean up response
   let content = response;
-  const mdMatch = response.match(/```markdown\n?([\s\S]*?)\n?```/);
-  if (mdMatch) {
-    content = mdMatch[1];
+  if (input.output === "design-md") {
+    // For design-md: strip surrounding ```markdown fences if present; content must start with ---
+    const mdMatch = response.match(/```markdown\n?([\s\S]*?)\n?```/);
+    if (mdMatch) {
+      content = mdMatch[1];
+    }
+    // Trim leading whitespace/newlines so the file starts cleanly with ---
+    content = content.trimStart();
+  } else {
+    // Legacy: original behaviour — strip markdown code blocks if present
+    const mdMatch = response.match(/```markdown\n?([\s\S]*?)\n?```/);
+    if (mdMatch) {
+      content = mdMatch[1];
+    }
   }
 
   return {
     content,
-    message: `Generated design system for ${input.framework}/${input.cssFramework}${input.includeCroPrinciples ? " with CRO patterns" : ""}`,
+    message: `Generated ${input.output === "design-md" ? "DESIGN.md (Google Labs spec)" : "design system (legacy format)"} for ${input.framework}/${input.cssFramework}${input.includeCroPrinciples ? " with CRO patterns" : ""}`,
   };
 }
 
 export const designSystemToolMeta = {
   name: "gemini_design_system",
-  description: `Generate a comprehensive design-system.md file for your project.
+  description: `Generates a DESIGN.md file compliant with the Google Labs open-source spec (default). Falls back to a legacy 10-section format via \`output: 'legacy'\` for backwards compatibility.
 
 Creates a complete design system including:
-- Colors, typography, spacing
-- Component specifications (buttons, inputs, cards, modals, etc.)
-- Layout patterns and breakpoints
-- Motion/animation guidelines
-- CRO-optimized patterns (empty states, progress, CTAs)
+- YAML frontmatter with color, typography, spacing, rounded, and component tokens
+- 8 canonical sections: Overview, Colors, Typography, Layout, Elevation & Depth, Shapes, Components, Do's and Don'ts
+- All component values use token references (e.g. "{colors.primary}")
+- CRO-optimized patterns embedded in Do's and Don'ts (when includeCroPrinciples is true)
 
 Use gemini-2.5-pro for best quality (default).
-Save the output as design-system.md and reference it in other tools.`,
+Save the output as DESIGN.md and reference it in other tools.`,
   inputSchema: designSystemSchema,
 };
