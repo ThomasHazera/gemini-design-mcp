@@ -109,14 +109,40 @@ All generated code follows these user-first principles:
 
 Source: [onboarding-cro skill](https://skills.sh/coreyhaines31/marketingskills/onboarding-cro)
 
-## Models & Pricing
+## Model Selection Guide
 
-| Model | Use Case | Cost (approx) |
-|-------|----------|---------------|
-| `gemini-2.5-flash` | Default, fast | ~$0.15/1M tokens |
-| `gemini-2.5-pro` | Design systems, complex pages | ~$1.25/1M tokens |
-| `gemini-2.0-flash-lite` | Budget option | ~$0.075/1M tokens |
-| `gemini-3-flash-preview` | Premium visual - dashboard, onboarding, landing pages | ~$0.50/$3 per 1M tokens |
+**Rule of thumb**: match the model to the **visual stakes** of the interface.
+The most powerful model available (`gemini-3-flash-preview` today) should be used
+for interfaces that carry the overall feel of the product or where visual quality
+directly impacts conversion / retention.
+
+### Tiers
+
+| Tier | Model | Cost (approx) | Use for |
+|------|-------|---------------|---------|
+| Budget | `gemini-2.0-flash-lite` | ~$0.075/1M tokens | Quick fixes, minor text changes |
+| Standard | `gemini-2.5-flash` | ~$0.15/1M tokens | **Default** — forms, admin, CRUD, settings |
+| Quality | `gemini-2.5-pro` | ~$1.25/1M tokens | Design system generation, architectural consistency |
+| Premium | `gemini-3-flash-preview` | ~$0.50/$3 per 1M tokens | **Hero interfaces** — dashboard, onboarding, landing, conversion pages, main data viz |
+
+### Decision Matrix
+
+| Interface type | Recommended model | Rationale |
+|----------------|-------------------|-----------|
+| Main dashboard | `gemini-3-flash-preview` | First impression, daily use |
+| Onboarding / first-run | `gemini-3-flash-preview` | Conversion critical |
+| Landing / marketing page | `gemini-3-flash-preview` | Public-facing, brand image |
+| Data visualization (hero) | `gemini-3-flash-preview` | Complex, high user value |
+| Design system generation | `gemini-2.5-pro` | Architectural consistency across the app |
+| Settings / profile | `gemini-2.5-flash` | Utility, low visual stakes |
+| Admin panel | `gemini-2.5-flash` | Internal, functional focus |
+| Forms (CRUD) | `gemini-2.5-flash` | Standard patterns |
+| Modal / toast / alert | `gemini-2.5-flash` | Small, reusable |
+| Simple component fix | `gemini-2.0-flash-lite` | Quick iteration |
+
+> If unspecified, all tools default to `gemini-2.5-flash`. Pass `model: "gemini-3-flash-preview"` explicitly when the interface is a hero surface for the product.
+
+> **Note** — once the `@google/genai` SDK migration lands, the Premium tier will move from `gemini-3-flash-preview` (preview) to `gemini-3-pro` (GA) and defaults for `gemini_design_system` / `gemini_create_frontend` will shift accordingly.
 
 ## Development
 
