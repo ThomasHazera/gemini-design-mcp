@@ -116,6 +116,7 @@ Source: [onboarding-cro skill](https://skills.sh/coreyhaines31/marketingskills/o
 | `gemini-2.5-flash` | Default, fast | ~$0.15/1M tokens |
 | `gemini-2.5-pro` | Design systems, complex pages | ~$1.25/1M tokens |
 | `gemini-2.0-flash-lite` | Budget option | ~$0.075/1M tokens |
+| `gemini-3-flash-preview` | Premium visual - dashboard, onboarding, landing pages | ~$0.50/$3 per 1M tokens |
 
 ## Development
 

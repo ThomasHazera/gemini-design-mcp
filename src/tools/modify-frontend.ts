@@ -17,9 +17,9 @@ export const modifyFrontendSchema = z.object({
     .default("react")
     .describe("Frontend framework of the file"),
   model: z
-    .enum(["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash-lite"])
+    .enum(["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash-lite", "gemini-3-flash-preview"])
     .default("gemini-2.5-flash")
-    .describe("Gemini model"),
+    .describe("Gemini model (2.5-flash=standard, 2.5-pro=complex, 3-flash-preview=premium visual)"),
 });
 
 export type ModifyFrontendInput = z.infer<typeof modifyFrontendSchema>;
