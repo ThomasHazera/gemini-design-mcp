@@ -2,6 +2,48 @@
 
 MCP server for frontend code generation via Google Gemini API with built-in CRO (Conversion Rate Optimization) principles.
 
+## Why a dedicated MCP for frontend generation?
+
+Generating production-grade frontend with an LLM orchestrator requires a lot of *implicit* knowledge: framework conventions, accessibility rules, CRO patterns, design tokens, and the right model for the visual stakes of each interface. Cramming all of that into your orchestrator's prompts works for a toy app — on a real project it eats the context window and quietly degrades reasoning quality.
+
+This MCP is built to slot into orchestrator-driven workflows like Claude Code, and solves four concrete pains:
+
+### 1. Zero prompt duplication across projects
+
+System prompts, CRO principles, framework guidelines and model-selection logic live **here**, versioned with the server. Your project doesn't carry them, and you don't paste them into every new repo. Update the MCP once → every project benefits. The orchestrator just calls a tool — it doesn't need to know *how* good frontend gets generated.
+
+### 2. The orchestrator's context stays clean
+
+Calling `gemini_create_frontend` costs your orchestrator a single tool call — not 2k tokens of frontend best-practices, not a copy of your design system, not the generated output dumped back inline. The heavy lifting (large system prompts, design-system content, full code generation) happens inside Gemini's context, not Claude's. Your orchestrator stays under the 40% context-usage threshold for longer, which keeps planning quality and tool-selection accuracy high.
+
+### 3. Model arbitration without contaminating the orchestrator
+
+The MCP exposes a tier system (Budget / Standard / Quality / Premium — see [Model Selection Guide](#model-selection-guide)). The orchestrator says *what* to build; the MCP decides *which* Gemini model fits the visual stakes. Switching from `gemini-2.5-flash` to `gemini-3-pro` for a hero page is a parameter change, not a prompt refactor. New models drop in by updating the enum once, here.
+
+### 4. Structured, pipeline-friendly output
+
+`gemini_design_system` produces files compliant with the [Google Labs DESIGN.md spec](https://github.com/google-labs-code/design.md) — directly lintable, exportable to Tailwind / DTCG tokens, and readable by downstream agents. `gemini_cro_review` returns JSON with score, issues and suggestions — not prose to re-parse. The MCP behaves like a node in your build pipeline, not a black box.
+
+### Where it fits in a Claude Code orchestrator
+
+```
+Claude Code orchestrator (lightweight, stays in planning mode)
+    │
+    ├── @ui-architect          (specifies UI, owns DESIGN.md)
+    │
+    ├── gemini-design-mcp      ← this server (heavy lifting isolated here)
+    │     ├── gemini_design_system    (DESIGN.md generation)
+    │     ├── gemini_create_frontend  (pages / views)
+    │     ├── gemini_snippet_frontend (reusable components)
+    │     ├── gemini_modify_frontend  (edits existing UI)
+    │     └── gemini_cro_review       (conversion audit)
+    │
+    ├── @developer             (wires business logic onto generated UI)
+    └── @reviewer              (gatekeeps before merge)
+```
+
+The MCP owns *what good frontend looks like*. Your orchestrator owns *what to build and why*. That separation is what makes the setup scale across multiple large projects without each of them dragging a copy of the rules.
+
 ## Features
 
 - **5 MCP Tools** for frontend development
